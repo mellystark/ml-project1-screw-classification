@@ -1,11 +1,16 @@
-# 📌 Vida Sınıflandırma Projesi – Model 1 (Transfer Learning, VGG16)
+# 📌 Vida Sınıflandırma Projesi – Model 1 ve Model 2
 
 Bu repo, iki sınıflı vida görüntü sınıflandırma problemi için hazırlanmıştır:
 
-* **machine_screw** → makine vidası
-* **wood_sheet_metal_screw** → ahşap / sac vidası
+* **machine_screw** → makine vidası  
+* **wood_sheet_metal_screw** → ahşap / sac vidası  
 
-Bu README, özellikle **Model1.ipynb** dosyasında yapılan **transfer learning (VGG16)** deneylerini özetler.
+Projede iki farklı model yaklaşımı denenmiştir:
+
+* **Model 1 – Transfer Learning (VGG16)**
+* **Model 2 – Sıfırdan Eğitilen Basit CNN (CIFAR-10 tarzı)**
+
+Aşağıda veri seti, ortam ve her iki model için özet bilgiler yer almaktadır.
 
 ---
 
@@ -13,16 +18,16 @@ Bu README, özellikle **Model1.ipynb** dosyasında yapılan **transfer learning 
 
 Ham veri Google Drive üzerinde aşağıdaki yapıdadır:
 
-```
+```text
 project-1/
   dataset/
     machine_screw/             # 63 görüntü
     wood_sheet_metal_screw/    # 63 görüntü
-```
+````
 
-Model1 için bu veri kontrollü şekilde **train / validation / test** olarak bölünmüştür:
+Model1 ve Model2 için bu veri kontrollü şekilde **train / validation / test** olarak bölünmüştür:
 
-```
+```text
 project-1/
   dataset_split/
     train/
@@ -44,7 +49,7 @@ project-1/
 Eğitim sırasında tüm görüntüler:
 
 * `rescale=1./255` ile normalize edilmiştir,
-* `target_size=(128, 128)` şeklinde yeniden boyutlandırılmıştır.
+* `target_size=(128, 128)` şeklinde yeniden boyutlandırılmıştır (hem Model1 hem Model2).
 
 ---
 
@@ -55,13 +60,30 @@ Eğitim sırasında tüm görüntüler:
 * **Ana kütüphaneler:**
 
   * TensorFlow / Keras
+  * NumPy
   * Matplotlib
 
-Veriye erişim için Google Drive mount edilmiştir.
+Veriye erişim için Google Drive mount edilmiştir:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+Ayrıca sonuçların tekrar edilebilir olması için seed ayarı yapılmıştır:
+
+```python
+import numpy as np, tensorflow as tf, random
+
+SEED = 42
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+random.seed(SEED)
+```
 
 ---
 
-## 3. Model 1 – Transfer Learning ile VGG16
+## 3. Model 1 – Transfer Learning ile VGG16 (`Model1.ipynb`)
 
 ### 3.1. Temel VGG16 Tabanı
 
@@ -69,9 +91,9 @@ Veriye erişim için Google Drive mount edilmiştir.
 * Son sınıflandırma bloğu kaldırılmıştır.
 * Başlangıç aşamasında:
 
-  ```
-  base_model.trainable = False
-  ```
+```python
+base_model.trainable = False
+```
 
 ---
 
@@ -103,11 +125,11 @@ Bu nedenle geliştirme ihtiyacı görülmüştür.
 
 ---
 
-## 4. İyileştirilmiş Model 1 – Daha Derin Dense Blok
+### 3.3. İyileştirilmiş Model 1 – Daha Derin Dense Blok (Final)
 
 Performansı artırmak için üst sınıflandırma bloğu yeniden tasarlanmıştır.
 
-### 4.1. Final Model Mimarısi (Flatten + Dense)
+**Final Model Mimarısi (Flatten + Dense):**
 
 * VGG16 (dondurulmuş)
 * `Flatten()`
@@ -120,36 +142,171 @@ Performansı artırmak için üst sınıflandırma bloğu yeniden tasarlanmışt
 **Eğitim Ayarları:**
 
 * `Adam(1e-4)`
-* `EarlyStopping(patience=5)`
-* 30 epoch (erken durdurma aktif)
+* `categorical_crossentropy`
+* `accuracy`
+* `EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True)`
+* En fazla 30 epoch (erken durdurma aktif)
 
 **Performans (özet):**
 
 * Train accuracy ≈ **0.90**
 * Validation accuracy ≈ **0.80**
 * Test accuracy ≈ **0.61**
-  (26 örnek olduğu için ±1 görüntü %3–8 arasında değişim yapabiliyor.)
+
+> Not: Test seti yalnızca 26 örnek içerdiği için, tek bir görüntünün doğru/yanlış sınıflanması accuracy’yi yaklaşık %3–4 oranında değiştirebilmektedir.
 
 ---
 
-## 5. Fine-Tuning Denemesi – VGG16 Block 5
+### 3.4. Fine-Tuning Denemesi – VGG16 Block 5
 
 Ek deney olarak fine-tuning uygulanmıştır:
 
 * `block5_*` katmanları `trainable = True` yapılmıştır.
-* Öğrenme oranı:
+* Diğer katmanlar donuk bırakılmıştır.
+* Öğrenme oranı düşürülmüştür:
 
-  ```
-  Adam(1e-5)
-  ```
-* EarlyStopping ile kısa ek eğitim yapılmıştır.
+```python
+Adam(1e-5)
+```
+
+* `EarlyStopping` ile kısa ek eğitim yapılmıştır.
 
 **Sonuç:**
 
 * Validation accuracy yine ≈ **0.80**
 * Test accuracy yine ≈ **0.61**
 
-> Bu nedenle Fine-Tuning, test performansını anlamlı biçimde artırmadığı için final modele dahil edilmemiştir.
+Bu nedenle Fine-Tuning, test performansını anlamlı biçimde artırmadığı için final modele dahil edilmemiş; raporda “ek deney” olarak bırakılmıştır.
+
+---
+
+## 4. Model 2 – Sıfırdan Eğitilen Basit CNN (`model2.ipynb`)
+
+Model 2’de amaç, **transfer learning kullanmadan**, CIFAR-10 benzeri **basit bir CNN mimarisini sıfırdan** eğitip aynı veri seti üzerinde performansı gözlemlemektir. Böylece Model 1 ve Model 2 sonuçları doğrudan karşılaştırılabilir.
+
+### 4.1. Veri ve Girdi Ayarları
+
+Model 2 de aynı `dataset_split` yapısını kullanır:
+
+* Train: 80 görüntü (40 + 40)
+* Validation: 20 görüntü (10 + 10)
+* Test: 26 görüntü (13 + 13)
+
+Tüm görüntüler:
+
+```python
+ImageDataGenerator(rescale=1./255)
+target_size = (128, 128)
+batch_size = 8  # veya 16
+class_mode = 'categorical'
+```
+
+şeklinde Keras `flow_from_directory` ile okunmuştur. Train/val/test için ayrı generator’lar tanımlanmıştır.
+
+---
+
+### 4.2. Model 2 CNN Mimarisi
+
+Model 2, üç konvolüsyon bloğu ve ardından basit bir tam bağlı kısımdan oluşan klasik bir CNN’dir.
+
+```python
+model2 = Sequential([
+    # Giriş
+    Input(shape=(128, 128, 3)),
+
+    # Blok 1
+    Conv2D(32, (3, 3), padding='same', activation='relu'),
+    MaxPooling2D((2, 2)),
+
+    # Blok 2
+    Conv2D(64, (3, 3), padding='same', activation='relu'),
+    MaxPooling2D((2, 2)),
+
+    # Blok 3
+    Conv2D(128, (3, 3), padding='same', activation='relu'),
+    MaxPooling2D((2, 2)),
+
+    # Tam bağlı kısım
+    Flatten(),
+    Dense(256, activation='relu'),
+    Dropout(0.3),
+    Dense(2, activation='softmax')
+])
+```
+
+Bu yapı, CIFAR-10 örneklerinde kullanılan basit CNN’lere benzer olacak şekilde tasarlanmıştır; herhangi bir ön-eğitim (pretrained weights) kullanılmamıştır.
+
+---
+
+### 4.3. Eğitim Ayarları
+
+Model 2 için kullanılan temel eğitim ayarları:
+
+```python
+model2.compile(
+    optimizer=Adam(learning_rate=2e-4),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+early_stop2 = EarlyStopping(
+    monitor='val_accuracy',
+    patience=8,
+    restore_best_weights=True
+)
+
+EPOCHS = 50  # early stopping ile genelde daha erken duruyor
+```
+
+Eğitim sırasında:
+
+* Eğitim ve doğrulama doğruluk/kayıp değerleri kayıt altına alınmış,
+* `Model 2 - Eğitim ve Doğrulama Doğruluğu` ve
+  `Model 2 - Eğitim ve Doğrulama Kayıp Değerleri` grafikleri çizdirilmiştir.
+
+---
+
+### 4.4. Model 2 Sonuçları (Özet)
+
+Seçilen final konfigürasyon için gözlenen tipik değerler:
+
+* **En yüksek validation accuracy** ≈ **0.65–0.70**
+* Eğitim doğruluğu epoch sonlarında ≈ **0.70** seviyesine yaklaşmaktadır.
+* **Test accuracy** ≈ **0.42**
+  (26 örnek için bu, yaklaşık 11/26 doğru sınıflama anlamına gelir.)
+
+Loss grafikleri incelendiğinde:
+
+* Hem train loss hem val loss zamanla azalmakta,
+* Aralarındaki fark çok açılmadığı için aşırı overfitting gözlenmemektedir,
+* Ancak küçük veri seti ve sıfırdan eğitim nedeniyle modelin genelleme kapasitesi sınırlı kalmaktadır.
+
+Bu sonuçlar, sıfırdan eğitilen basit CNN’in bu veri setinde **orta düzey bir performans** sağladığını, ancak transfer learning’e göre daha zayıf kaldığını göstermektedir.
+
+---
+
+## 5. Model 1 ve Model 2 Karşılaştırması
+
+Aynı veri bölünmesi üzerinde iki modelin test performansları kabaca şöyledir:
+
+* **Model 1 (VGG16, transfer learning)**
+
+  * Test accuracy ≈ **0.61**
+* **Model 2 (basit CNN, sıfırdan eğitim)**
+
+  * Test accuracy ≈ **0.42**
+
+Bu farkın başlıca nedenleri:
+
+1. **Önceden Eğitilmiş Özellikler:**
+   VGG16, ImageNet üzerinde eğitildiği için kenar, doku, şekil gibi düşük/orta seviye görsel özellikleri zaten iyi öğrenmiş durumdadır. Küçük vida veri seti üzerinde sadece üst sınıflandırıcı katmanların eğitilmesi bile yüksek performans sağlamaktadır.
+
+2. **Veri Miktarı ve Sıfırdan Eğitim:**
+   Model 2’de tüm ağırlıklar sıfırdan rastgele başlatılmıştır. Her sınıf için yalnızca 40 eğitim görüntüsü (toplam 80 örnek) ile bu ağın hem düşük seviyeli hem yüksek seviyeli özellikleri aynı anda öğrenmesi zordur. Bu nedenle test setinde genelleme performansı sınırlı kalmaktadır.
+
+Sonuç olarak:
+
+> Küçük ve sınırlı bir veri setinde, **transfer learning (Model 1)** yaklaşımı, **sıfırdan eğitilen basit CNN (Model 2)** yaklaşımına göre daha yüksek ve daha kararlı bir performans sunmuştur.
 
 ---
 
@@ -157,27 +314,34 @@ Ek deney olarak fine-tuning uygulanmıştır:
 
 1. **Drive bağlantısı**
 
-   ```
+   ```python
+   from google.colab import drive
    drive.mount('/content/drive')
    ```
 
 2. **Veri hazırlama**
 
-   * Ham veri → eğitim/validation/test klasörlerine bölünür.
-   * Train: 80, Val: 20, Test: 26 örnek.
+   * Ham veri: `dataset/`
+   * Train/Val/Test: `dataset_split/` içinde
 
-3. **ImageDataGenerator ayarları**
+     * Train: 80, Val: 20, Test: 26 örnek.
 
-   * `128×128`, `rescale=1/255`
+3. **Model 1 (VGG16 – Transfer Learning) – `Model1.ipynb`**
 
-4. **Model 1 eğitimi (final mimari)**
+   * VGG16 tabanını yükle (`include_top=False`, `weights='imagenet'`).
+   * Üst sınıflandırıcı bloğu (Flatten + Dense(256,128) + Dropout) ekle.
+   * `Adam(1e-4)` ile eğit, EarlyStopping uygula.
+   * Eğitim/val grafiklerini çiz ve test doğruluğunu raporla.
 
-   * Flatten + Dense(256,128) + Dropout
-   * EarlyStopping
-   * Test doğruluğu hesaplanır.
+4. **Model 2 (Basit CNN) – `model2.ipynb`**
 
-5. **Ek denemeler**
+   * Aynı `dataset_split` klasörünü kullan.
+   * 3 konvolüsyon bloğu + Flatten + Dense(256) + Dropout + Dense(2) mimarisi kur.
+   * `Adam(2e-4)` ile eğit, EarlyStopping uygula.
+   * Eğitim/val grafiklerini çiz ve test doğruluğunu raporla.
 
-   * GAP tabanlı model
-   * Block5 Fine-Tuning
+5. **Karşılaştırma**
+
+   * Model1 ve Model2’nin validation/test doğruluklarını karşılaştır.
+   * Transfer learning’in küçük veri setlerinde sağladığı avantajı tartış.
 
